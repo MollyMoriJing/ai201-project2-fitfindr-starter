@@ -18,6 +18,31 @@ from agent import run_agent
 from utils.data_loader import get_example_wardrobe, get_empty_wardrobe
 
 
+# ── formatting ────────────────────────────────────────────────────────────────
+
+def _format_listing(item: dict, total_found: int, price_assessment: dict | None = None) -> str:
+    """Render the selected listing dict (and its price check) into a UI block."""
+    price = item.get("price")
+    price_str = f"${price:g}" if isinstance(price, (int, float)) else "—"
+    tags = ", ".join(item.get("style_tags") or []) or "—"
+    lead = f"Found {total_found} match{'es' if total_found != 1 else ''} — showing the top one:\n\n"
+    block = (
+        f"{lead}"
+        f"🛍️ {item.get('title', 'Untitled')}\n"
+        f"{price_str} · {item.get('platform', '—')} · {item.get('condition', '—')} condition\n"
+        f"Size: {item.get('size', '—')}\n"
+        f"Brand: {item.get('brand') or '—'}\n"
+        f"Style: {tags}\n\n"
+        f"{item.get('description', '')}"
+    )
+    if price_assessment:
+        if price_assessment.get("verdict") and price_assessment["verdict"] != "unknown":
+            block += f"\n\n💰 Price check [{price_assessment['verdict']}]: {price_assessment['message']}"
+        else:
+            block += f"\n\n💰 Price check: {price_assessment['message']}"
+    return block
+
+
 # ── query handler ─────────────────────────────────────────────────────────────
 
 def handle_query(user_query: str, wardrobe_choice: str) -> tuple[str, str, str]:
@@ -43,8 +68,43 @@ def handle_query(user_query: str, wardrobe_choice: str) -> tuple[str, str, str]:
            string and return it along with session["outfit_suggestion"] and
            session["fit_card"].
     """
-    # TODO: implement this function
-    return "Agent not yet implemented.", "", ""
+    # 1. Guard against an empty query.
+    if not user_query or not user_query.strip():
+        return (
+            "⚠️ Tell me what you're looking for — e.g. 'vintage graphic tee under $30, size M'.",
+            "",
+            "",
+        )
+
+    # 2. Pick the wardrobe based on the radio choice.
+    wardrobe = (
+        get_empty_wardrobe()
+        if wardrobe_choice.startswith("Empty")
+        else get_example_wardrobe()
+    )
+
+    # 3. Run the planning loop.
+    session = run_agent(user_query, wardrobe)
+
+    # 4. Error / no-results path → message in panel 1, others empty.
+    if session["error"]:
+        mem = f"🧠 {session['memory_note']}\n\n" if session.get("memory_note") else ""
+        return f"{mem}⚠️ {session['error']}", "", ""
+
+    # 5. Happy path → map the session into the three panels.
+    notes = []
+    if session.get("memory_note"):
+        notes.append(f"🧠 {session['memory_note']}")
+    if session.get("adjusted"):
+        notes.append(f"🔁 Heads up: I {session['adjusted']}.")
+    prefix = ("\n".join(notes) + "\n\n") if notes else ""
+
+    listing_text = prefix + _format_listing(
+        session["selected_item"],
+        len(session["search_results"]),
+        session.get("price_assessment"),
+    )
+    return listing_text, session["outfit_suggestion"], session["fit_card"]
 
 
 # ── interface ─────────────────────────────────────────────────────────────────
