@@ -10,9 +10,10 @@ something comes back empty.
 
 ## Demo
 
-🎥 Full walkthrough (the happy path with all the tools and state passing, the
-adaptive retry, a triggered failure, and the cross-session memory) is in
-[`demo.mp4`](demo.mp4) in the repo root.
+
+
+https://github.com/user-attachments/assets/52f8bf9a-3a61-4cdc-b88f-8605437f0da3
+
 
 ---
 
